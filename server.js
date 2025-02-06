@@ -66,6 +66,7 @@ app.get('/api/prices', async (req, res) => {
         price: getPropertyValue(properties, 'Price') || 0,
         features: getPropertyValue(properties, 'Features') || [],
         recommended: getPropertyValue(properties, 'Recommended') || false,
+        serviceDetails: getPropertyValue(properties, 'ServiceDetails') || '', // Add service details
       };
     });
 

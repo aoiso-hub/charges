@@ -5,4 +5,5 @@ export interface PriceItem {
   price: number;
   features: string[];
   recommended?: boolean;
+  serviceDetails?: string; // Add service details field
 }
