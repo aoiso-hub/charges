@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Check, X } from 'lucide-react';
-import type { PriceItem } from '../types/price';
+import { Check, X, ChevronDown, ChevronRight } from 'lucide-react';
+import type { PriceItem, BlockContent } from '../types/price';
 
 interface PriceTableProps {
   prices: PriceItem[];
@@ -10,40 +10,179 @@ interface PriceTableProps {
 interface ServiceDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  serviceDetails: string;
+  serviceDetails: BlockContent[];
   planName: string;
 }
 
-function ServiceDetailsModal({ isOpen, onClose, serviceDetails, planName }: ServiceDetailsModalProps) {
+function ServiceDetailsModal({ isOpen, onClose, serviceDetails = [], planName }: ServiceDetailsModalProps) {
   if (!isOpen) return null;
 
-  const renderContent = (content: string) => {
-    return content.split('\n\n').map((block, index) => {
-      if (block.startsWith('# ')) {
-        return <h1 key={index} className="text-3xl font-bold mb-4">{block.slice(2)}</h1>;
-      }
-      if (block.startsWith('## ')) {
-        return <h2 key={index} className="text-2xl font-bold mb-3">{block.slice(3)}</h2>;
-      }
-      if (block.startsWith('### ')) {
-        return <h3 key={index} className="text-xl font-bold mb-2">{block.slice(4)}</h3>;
-      }
-      if (block.startsWith('• ')) {
+  const [expandedToggles, setExpandedToggles] = useState<{ [key: string]: boolean }>({});
+
+  const toggleExpand = (index: string) => {
+    setExpandedToggles(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  const renderChildren = (children: BlockContent[] = [], parentIndex: string) => {
+    return children.map((child, idx) => 
+      renderBlock(child, `${parentIndex}-${idx}`)
+    );
+  };
+
+  const renderBlock = (block: BlockContent, index: string) => {
+    switch (block.type) {
+      case 'heading_1':
+        return <h1 key={index} className="text-3xl font-bold mb-4">{block.content}</h1>;
+      case 'heading_2':
+        return <h2 key={index} className="text-2xl font-bold mb-3">{block.content}</h2>;
+      case 'heading_3':
+        return <h3 key={index} className="text-xl font-bold mb-2">{block.content}</h3>;
+      case 'bulleted_list_item':
         return (
-          <ul key={index} className="list-disc list-inside mb-4">
-            <li>{block.slice(2)}</li>
+          <ul key={index} className="list-disc list-inside mb-2">
+            <li className="text-gray-700">
+              {block.content}
+              {block.children && block.children.length > 0 && (
+                <div className="ml-6">
+                  {renderChildren(block.children, index)}
+                </div>
+              )}
+            </li>
           </ul>
         );
-      }
-      if (block.match(/^\d+\. /)) {
+      case 'numbered_list_item':
         return (
-          <ol key={index} className="list-decimal list-inside mb-4">
-            <li>{block.replace(/^\d+\. /, '')}</li>
+          <ol key={index} className="list-decimal list-inside mb-2">
+            <li className="text-gray-700">
+              {block.content}
+              {block.children && block.children.length > 0 && (
+                <div className="ml-6">
+                  {renderChildren(block.children, index)}
+                </div>
+              )}
+            </li>
           </ol>
         );
-      }
-      return <p key={index} className="mb-4 text-gray-700">{block}</p>;
-    });
+      case 'to_do':
+        return (
+          <div key={index} className="flex items-center gap-2 mb-2">
+            <input
+              type="checkbox"
+              checked={block.checked}
+              readOnly
+              className="rounded border-gray-300"
+            />
+            <span className={block.checked ? 'line-through text-gray-500' : 'text-gray-700'}>
+              {block.content}
+            </span>
+          </div>
+        );
+      case 'toggle':
+        return (
+          <div key={index} className="mb-2">
+            <button
+              onClick={() => toggleExpand(index)}
+              className="flex items-center gap-2 w-full text-left p-2 hover:bg-gray-50 rounded"
+            >
+              {expandedToggles[index] ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+              <span className="text-gray-700">{block.content}</span>
+            </button>
+            {expandedToggles[index] && block.children && (
+              <div className="ml-6 mt-2">
+                {renderChildren(block.children, index)}
+              </div>
+            )}
+          </div>
+        );
+      case 'code':
+        return (
+          <div key={index} className="mb-4">
+            <pre className="bg-gray-800 text-white p-4 rounded-lg overflow-x-auto">
+              <code className={`language-${block.language}`}>{block.content}</code>
+            </pre>
+          </div>
+        );
+      case 'quote':
+        return (
+          <blockquote key={index} className="border-l-4 border-gray-300 pl-4 my-4 italic text-gray-700">
+            {block.content}
+          </blockquote>
+        );
+      case 'callout':
+        return (
+          <div key={index} className="bg-gray-50 p-4 rounded-lg mb-4">
+            <p className="text-gray-700">{block.content}</p>
+          </div>
+        );
+      case 'divider':
+        return <hr key={index} className="my-4 border-gray-200" />;
+      case 'image':
+        return (
+          <figure key={index} className="mb-4">
+            {block.url && (
+              <img
+                src={block.url}
+                alt={block.content}
+                className="w-full h-auto rounded-lg shadow-md"
+              />
+            )}
+            {block.content && (
+              <figcaption className="mt-2 text-sm text-center text-gray-600">
+                {block.content}
+              </figcaption>
+            )}
+          </figure>
+        );
+      case 'bookmark':
+      case 'link_preview':
+        return (
+          <a
+            key={index}
+            href={block.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block p-4 border rounded-lg mb-4 hover:bg-gray-50"
+          >
+            <div className="text-blue-600 hover:underline">{block.url}</div>
+            {block.content && (
+              <div className="text-sm text-gray-600 mt-1">{block.content}</div>
+            )}
+          </a>
+        );
+      case 'table':
+        return (
+          <div key={index} className="mb-4 overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <tbody className="divide-y divide-gray-200">
+                {block.children?.map((row, rowIdx) => (
+                  <tr key={`${index}-row-${rowIdx}`}>
+                    {row.content.split('|').map((cell, cellIdx) => (
+                      <td key={`${index}-cell-${cellIdx}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      case 'paragraph':
+        return block.content ? (
+          <p key={index} className="mb-4 text-gray-700">{block.content}</p>
+        ) : (
+          <div key={index} className="h-4" />
+        );
+      default:
+        return null;
+    }
   };
 
   return (
@@ -57,7 +196,9 @@ function ServiceDetailsModal({ isOpen, onClose, serviceDetails, planName }: Serv
         </button>
         <h3 className="text-2xl font-bold mb-6">{planName}の詳細</h3>
         <div className="prose max-w-none">
-          {renderContent(serviceDetails)}
+          {Array.isArray(serviceDetails) && serviceDetails.map((block, index) => 
+            renderBlock(block, index.toString())
+          )}
         </div>
       </div>
     </div>
@@ -143,7 +284,7 @@ export function PriceTable({ prices, isLoading }: PriceTableProps) {
       <ServiceDetailsModal
         isOpen={!!selectedPlan}
         onClose={() => setSelectedPlan(null)}
-        serviceDetails={selectedPlan?.serviceDetails || ''}
+        serviceDetails={selectedPlan?.serviceDetails || []}
         planName={selectedPlan?.name || ''}
       />
     </>

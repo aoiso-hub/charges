@@ -1,3 +1,12 @@
+export interface BlockContent {
+  type: string;
+  content: string;
+  url?: string;
+  checked?: boolean;
+  children?: BlockContent[];
+  language?: string;
+}
+
 export interface PriceItem {
   id: string;
   name: string;
@@ -5,5 +14,5 @@ export interface PriceItem {
   price: number;
   features: string[];
   recommended?: boolean;
-  serviceDetails?: string; // Add service details field
+  serviceDetails: BlockContent[];
 }
