@@ -17,22 +17,47 @@ interface ServiceDetailsModalProps {
 function ServiceDetailsModal({ isOpen, onClose, serviceDetails, planName }: ServiceDetailsModalProps) {
   if (!isOpen) return null;
 
+  const renderContent = (content: string) => {
+    return content.split('\n\n').map((block, index) => {
+      if (block.startsWith('# ')) {
+        return <h1 key={index} className="text-3xl font-bold mb-4">{block.slice(2)}</h1>;
+      }
+      if (block.startsWith('## ')) {
+        return <h2 key={index} className="text-2xl font-bold mb-3">{block.slice(3)}</h2>;
+      }
+      if (block.startsWith('### ')) {
+        return <h3 key={index} className="text-xl font-bold mb-2">{block.slice(4)}</h3>;
+      }
+      if (block.startsWith('• ')) {
+        return (
+          <ul key={index} className="list-disc list-inside mb-4">
+            <li>{block.slice(2)}</li>
+          </ul>
+        );
+      }
+      if (block.match(/^\d+\. /)) {
+        return (
+          <ol key={index} className="list-decimal list-inside mb-4">
+            <li>{block.replace(/^\d+\. /, '')}</li>
+          </ol>
+        );
+      }
+      return <p key={index} className="mb-4 text-gray-700">{block}</p>;
+    });
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 relative">
+      <div className="bg-white rounded-lg p-8 max-w-2xl w-full mx-4 relative max-h-[80vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-gray-500 hover:text-gray-700"
         >
           <X className="h-6 w-6" />
         </button>
-        <h3 className="text-2xl font-bold mb-4">{planName}の詳細</h3>
+        <h3 className="text-2xl font-bold mb-6">{planName}の詳細</h3>
         <div className="prose max-w-none">
-          {serviceDetails.split('\n').map((paragraph, index) => (
-            <p key={index} className="mb-4 text-gray-700">
-              {paragraph}
-            </p>
-          ))}
+          {renderContent(serviceDetails)}
         </div>
       </div>
     </div>

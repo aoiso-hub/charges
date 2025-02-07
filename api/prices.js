@@ -25,6 +25,28 @@ const getPropertyValue = (properties, propertyName) => {
   }
 };
 
+// ページコンテンツの取得
+async function getPageContent(pageId) {
+  try {
+    const response = await notion.blocks.children.list({
+      block_id: pageId,
+    });
+
+    return response.results
+      .map(block => {
+        if (block.type === 'paragraph') {
+          return block.paragraph.rich_text.map(text => text.plain_text).join('');
+        }
+        return '';
+      })
+      .filter(text => text)
+      .join('\n\n');
+  } catch (error) {
+    console.error('ページコンテンツの取得に失敗:', error);
+    return '';
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -41,8 +63,10 @@ export default async function handler(req, res) {
       ],
     });
 
-    const prices = response.results.map((page) => {
+    const prices = await Promise.all(response.results.map(async (page) => {
       const properties = page.properties;
+      const serviceDetails = await getPageContent(page.id);
+      
       return {
         id: page.id,
         name: getPropertyValue(properties, 'Name') || '',
@@ -50,9 +74,9 @@ export default async function handler(req, res) {
         price: getPropertyValue(properties, 'Price') || 0,
         features: getPropertyValue(properties, 'Features') || [],
         recommended: getPropertyValue(properties, 'Recommended') || false,
-        serviceDetails: getPropertyValue(properties, 'ServiceDetails') || '', // Add service details
+        serviceDetails,
       };
-    });
+    }));
 
     res.status(200).json(prices);
   } catch (error) {

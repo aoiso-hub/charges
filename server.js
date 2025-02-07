@@ -3,13 +3,11 @@ import { createServer } from 'vite';
 import { Client } from '@notionhq/client';
 import * as dotenv from 'dotenv';
 
-// 環境変数の読み込み
 dotenv.config();
 
 const app = express();
 const port = 5173;
 
-// APIキーとデータベースIDの確認
 if (!process.env.VITE_NOTION_API_KEY) {
   console.error('Error: VITE_NOTION_API_KEY is not set');
   process.exit(1);
@@ -20,12 +18,10 @@ if (!process.env.VITE_NOTION_DATABASE_ID) {
   process.exit(1);
 }
 
-// Notion clientの初期化
 const notion = new Client({
   auth: process.env.VITE_NOTION_API_KEY,
 });
 
-// プロパティの安全な取得のためのヘルパー関数
 const getPropertyValue = (properties, propertyName) => {
   const property = properties[propertyName];
   if (!property) return null;
@@ -45,6 +41,39 @@ const getPropertyValue = (properties, propertyName) => {
   }
 };
 
+async function getPageContent(pageId) {
+  try {
+    const response = await notion.blocks.children.list({
+      block_id: pageId,
+    });
+
+    return response.results
+      .map(block => {
+        switch (block.type) {
+          case 'paragraph':
+            return block.paragraph.rich_text.map(text => text.plain_text).join('');
+          case 'heading_1':
+            return `# ${block.heading_1.rich_text.map(text => text.plain_text).join('')}`;
+          case 'heading_2':
+            return `## ${block.heading_2.rich_text.map(text => text.plain_text).join('')}`;
+          case 'heading_3':
+            return `### ${block.heading_3.rich_text.map(text => text.plain_text).join('')}`;
+          case 'bulleted_list_item':
+            return `• ${block.bulleted_list_item.rich_text.map(text => text.plain_text).join('')}`;
+          case 'numbered_list_item':
+            return `1. ${block.numbered_list_item.rich_text.map(text => text.plain_text).join('')}`;
+          default:
+            return '';
+        }
+      })
+      .filter(text => text)
+      .join('\n\n');
+  } catch (error) {
+    console.error('ページコンテンツの取得に失敗:', error);
+    return '';
+  }
+}
+
 app.get('/api/prices', async (req, res) => {
   try {
     const response = await notion.databases.query({
@@ -57,8 +86,10 @@ app.get('/api/prices', async (req, res) => {
       ],
     });
 
-    const prices = response.results.map((page) => {
+    const prices = await Promise.all(response.results.map(async (page) => {
       const properties = page.properties;
+      const serviceDetails = await getPageContent(page.id);
+      
       return {
         id: page.id,
         name: getPropertyValue(properties, 'Name') || '',
@@ -66,9 +97,9 @@ app.get('/api/prices', async (req, res) => {
         price: getPropertyValue(properties, 'Price') || 0,
         features: getPropertyValue(properties, 'Features') || [],
         recommended: getPropertyValue(properties, 'Recommended') || false,
-        serviceDetails: getPropertyValue(properties, 'ServiceDetails') || '', // Add service details
+        serviceDetails,
       };
-    });
+    }));
 
     res.json(prices);
   } catch (error) {
@@ -80,7 +111,6 @@ app.get('/api/prices', async (req, res) => {
   }
 });
 
-// Viteサーバーの設定
 const vite = await createServer({
   server: { middlewareMode: true },
   appType: 'spa',
